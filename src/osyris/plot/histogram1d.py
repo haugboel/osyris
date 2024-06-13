@@ -1,25 +1,30 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2022 Osyris contributors (https://github.com/osyris-project/osyris)
+# Copyright (c) 2024 Osyris contributors (https://github.com/osyris-project/osyris)
+
+from typing import Iterable, Union
 
 import numpy as np
-from typing import Union, Iterable
-from ..core import Plot, Array
+
+from ..core import Array, Layer, Plot
+from ..core.tools import finmax, finmin, to_bin_centers
+from .parser import parse_layer
 from .render import render
-from ..core.tools import to_bin_centers, finmin, finmax
 
 
-def histogram1d(*layers: Union[Iterable, Array],
-                bins: Union[int, Iterable] = 50,
-                weights: Array = None,
-                logx: bool = False,
-                logy: bool = False,
-                loglog: bool = False,
-                filename: str = None,
-                title: str = None,
-                ymin: float = None,
-                ymax: float = None,
-                ax: object = None,
-                **kwargs) -> Plot:
+def histogram1d(
+    *layers: Union[Iterable, Array],
+    bins: Union[int, Iterable] = 50,
+    weights: Array = None,
+    logx: bool = False,
+    logy: bool = False,
+    loglog: bool = False,
+    filename: str = None,
+    title: str = None,
+    ymin: float = None,
+    ymax: float = None,
+    ax: object = None,
+    **kwargs,
+) -> Plot:
     """
     Plot a 1D histogram with arbitrary number of variables as input.
     When a vector quantity is supplied, the function will histogram the norm of
@@ -60,46 +65,37 @@ def histogram1d(*layers: Union[Iterable, Array],
     figure = render(logx=logx, logy=logy, ax=ax)
 
     for layer in layers:
-        if isinstance(layer, dict):
-            params = {}
-            extra_args = {}
-            for key, param in layer.items():
-                if key in ["data", "bins", "weights"]:
-                    params[key] = param
-                else:
-                    extra_args[key] = param
-            for key, arg in {'bins': bins, 'weights': weights}.items():
-                if key not in params:
-                    params[key] = arg
-        else:
-            params = {'data': layer, 'bins': bins, 'weights': weights}
-            extra_args = kwargs
+        if isinstance(layer, Array):
+            layer = Layer(layer)
+        layer = parse_layer(layer, bins=bins, weights=weights, **kwargs)
 
-        xvals = params['data'].norm.values
-        if params['weights'] is not None:
-            params['weights'] = params['weights'].norm.values
+        xvals = layer.data.norm.values
+        if layer.weights is not None:
+            layer.weights = layer.weights.norm.values
 
         # Construct some bin edges
-        if isinstance(params['bins'], int):
+        if isinstance(layer.bins, int):
             xmin = finmin(xvals)
             xmax = finmax(xvals)
             if logx:
-                xedges = np.logspace(np.log10(xmin), np.log10(xmax), params['bins'] + 1)
+                xedges = np.logspace(np.log10(xmin), np.log10(xmax), layer.bins + 1)
             else:
-                xedges = np.linspace(xmin, xmax, params['bins'] + 1)
+                xedges = np.linspace(xmin, xmax, layer.bins + 1)
         else:
-            xedges = params['bins']
+            xedges = layer.bins
 
-        ydata, _, _ = figure["ax"].hist(xvals,
-                                        bins=xedges,
-                                        weights=params['weights'],
-                                        **extra_args)
+        ydata, _, _ = figure["ax"].hist(
+            xvals, bins=xedges, weights=layer.weights, **layer.kwargs
+        )
 
-        figure["ax"].set_xlabel(params['data'].label)
+        figure["ax"].set_xlabel(layer.data.label)
 
     figure["ax"].set_ylim(ymin, ymax)
-    return Plot(x=to_bin_centers(xedges),
-                y=ydata,
-                fig=figure["fig"],
-                ax=figure["ax"],
-                filename=filename)
+    figure["ax"].set_title(title)
+    return Plot(
+        x=to_bin_centers(xedges),
+        y=ydata,
+        fig=figure["fig"],
+        ax=figure["ax"],
+        filename=filename,
+    )

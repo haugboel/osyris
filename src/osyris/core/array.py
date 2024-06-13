@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2022 Osyris contributors (https://github.com/osyris-project/osyris)
+# Copyright (c) 2024 Osyris contributors (https://github.com/osyris-project/osyris)
 import numpy as np
-from pint.quantity import Quantity
+from pint import Quantity
 from pint.errors import DimensionalityError
+
+from .. import units
 from .base import Base
 from .tools import value_to_string
-from .. import units
 
 APPLY_OP_TO_UNIT = ("multiply", "true_divide", "divide", "sqrt", "power", "reciprocal")
 
@@ -27,40 +28,39 @@ def _binary_op(op, lhs, rhs, strict=True, **kwargs):
 
 
 class Array(Base):
-
-    def __init__(self, values, unit=None, parent=None, name=""):
-
+    def __init__(self, values, unit=None, name=""):
         if isinstance(values, Base):
             raise NotImplementedError("Cannot create Array from Array or Vector.")
 
         if isinstance(values, Quantity):
             if unit is not None:
                 raise ValueError(
-                    "Cannot set unit when creating an Array from a Quantity.")
+                    "Cannot set unit when creating an Array from a Quantity."
+                )
             self._array = values.magnitude
-            self.unit = values.units
+            self._unit = values.units
         else:
             self._array = values
-            self.unit = units(unit)
+            self._unit = units(unit)
         if not isinstance(self._array, np.ndarray):
             self._array = np.asarray(self._array)
 
-        self.parent = parent
         self.name = name
 
     def __getitem__(self, slice_):
         if isinstance(slice_, Base):
             if not isinstance(slice_, self.__class__):
                 raise ValueError(
-                    "Cannot slice using a Vector, only Array is supported.")
-            if slice_.dtype not in ('int32', 'int64', bool):
+                    "Cannot slice using a Vector, only Array is supported."
+                )
+            if slice_.dtype not in ("int32", "int64", bool):
                 raise TypeError(
-                    "Dtype of the Array must be integer or bool for slicing.")
+                    "Dtype of the Array must be integer or bool for slicing."
+                )
             slice_ = slice_.values
-        return self.__class__(values=self._array[slice_],
-                              unit=self.unit,
-                              parent=self.parent,
-                              name=self.name)
+        return self.__class__(
+            values=self._array[slice_], unit=self.unit, name=self.name
+        )
 
     def __len__(self):
         if self._array.shape:
@@ -73,16 +73,23 @@ class Array(Base):
         if len(self) == 0:
             values_str = "Value: " + value_to_string(self.values)
         else:
-            values_str = "Min: " + value_to_string(
-                self.min().values) + " Max: " + value_to_string(self.max().values)
+            values_str = (
+                "Min: "
+                + value_to_string(self.min().values)
+                + " Max: "
+                + value_to_string(self.max().values)
+            )
         unit_str = " [{:~}] ".format(self.unit)
         shape_str = str(self.shape)
         return name_str + values_str + unit_str + shape_str
 
     def copy(self):
-        return self.__class__(values=self._array.copy(),
-                              unit=units(self.unit),
-                              name=str(self.name))
+        """
+        Make a (deep) copy of the array.
+        """
+        return self.__class__(
+            values=self._array.copy(), unit=units(self.unit), name=str(self.name)
+        )
 
     @property
     def values(self):
@@ -94,6 +101,14 @@ class Array(Base):
     @values.setter
     def values(self, values_):
         self._array = values_
+
+    @property
+    def unit(self):
+        return self._unit
+
+    @unit.setter
+    def unit(self, unit_):
+        self._unit = units(unit_)
 
     @property
     def norm(self):
@@ -209,8 +224,9 @@ class Array(Base):
 
     def _wrap_numpy(self, func, *args, **kwargs):
         if isinstance(args[0], (tuple, list)):
-            array_args = (self._extract_arrays_from_args(
-                args[0]), ) + self._extract_arrays_from_args(args[1:])
+            array_args = (
+                self._extract_arrays_from_args(args[0]),
+            ) + self._extract_arrays_from_args(args[1:])
         else:
             array_args = self._extract_arrays_from_args(args)
         result = func(*array_args, **self._extract_arrays_from_kwargs(kwargs))
@@ -218,9 +234,10 @@ class Array(Base):
         unit = None
         if result.dtype in (int, float):
             if func.__name__ in APPLY_OP_TO_UNIT:
-                unit = func(*self._extract_units(args),
-                            **{key: a
-                               for key, a in kwargs.items() if key != "out"}).units
+                unit = func(
+                    *self._extract_units(args),
+                    **{key: a for key, a in kwargs.items() if key != "out"},
+                ).units
             else:
                 unit = self.unit
 

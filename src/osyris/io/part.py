@@ -1,16 +1,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2022 Osyris contributors (https://github.com/osyris-project/osyris)
-import numpy as np
+# Copyright (c) 2024 Osyris contributors (https://github.com/osyris-project/osyris)
 import os
-from .reader import Reader, ReaderKind
+
+import numpy as np
+
 from ..core import Array
 from . import utils
+from .reader import Reader
 
 
 class PartReader(Reader):
-
     def __init__(self):
-        super().__init__(kind=ReaderKind.PART)
+        super().__init__(kind="part")
 
     def initialize(self, meta, units, select):
         self.initialized = False
@@ -30,10 +31,9 @@ class PartReader(Reader):
             for i in range(len(desc_from_file))
         }
 
-        self.descriptor_to_variables(descriptor=descriptor,
-                                     meta=meta,
-                                     units=units,
-                                     select=select)
+        self.descriptor_to_variables(
+            descriptor=descriptor, meta=meta, units=units, select=select
+        )
         self.initialized = True
 
     def read_header(self, info):
@@ -41,21 +41,27 @@ class PartReader(Reader):
             return
         self.offsets["i"] += 2
         self.offsets["n"] += 2
-        [nparticles] = utils.read_binary_data(fmt="i",
-                                              content=self.bytes,
-                                              offsets=self.offsets)
+        [nparticles] = utils.read_binary_data(
+            fmt="i", content=self.bytes, offsets=self.offsets
+        )
         for i in range(5):
-            self.offsets["b"] += utils.skip_binary_line(content=self.bytes,
-                                                        offsets=self.offsets)
+            self.offsets["b"] += utils.skip_binary_line(
+                content=self.bytes, offsets=self.offsets
+            )
         for item in self.variables.values():
             if item["read"]:
                 npieces = len(item["pieces"])
-                item["pieces"][npieces] = Array(values=np.array(
-                    utils.read_binary_data(fmt="{}{}".format(nparticles, item["type"]),
-                                           content=self.bytes,
-                                           offsets=self.offsets)) *
-                                                item["unit"].magnitude,
-                                                unit=item["unit"].units)
+                item["pieces"][npieces] = Array(
+                    values=np.array(
+                        utils.read_binary_data(
+                            fmt="{}{}".format(nparticles, item["type"]),
+                            content=self.bytes,
+                            offsets=self.offsets,
+                        )
+                    )
+                    * item["unit"].magnitude,
+                    unit=item["unit"].units,
+                )
             else:
                 self.offsets[item["type"]] += nparticles
                 self.offsets["n"] += 1

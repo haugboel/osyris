@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2022 Osyris contributors (https://github.com/osyris-project/osyris)
+# Copyright (c) 2024 Osyris contributors (https://github.com/osyris-project/osyris)
+
+from typing import Union
 
 import numpy as np
-from pint.quantity import Quantity
-from typing import Union
-from ..core import Array, Plot
+from pint import Quantity
+
+from ..core import Array, Layer, Plot
+from ..core.tools import finmax, finmin, to_bin_centers
+from .parser import get_norm, parse_layer
 from .render import render
-from ..core.tools import to_bin_centers, finmin, finmax
-from .parser import parse_layer
 from .utils import hist2d
 
 
@@ -20,7 +22,8 @@ def _parse_limit(limit, x, logx, reduction):
             limit = finmax(x.values)
         else:
             raise RuntimeError(
-                f"_parse_limit: unknown reduction operation {reduction}.")
+                f"_parse_limit: unknown reduction operation {reduction}."
+            )
         autox = True
     else:
         if isinstance(limit, Quantity):
@@ -30,27 +33,29 @@ def _parse_limit(limit, x, logx, reduction):
     return limit, autox
 
 
-def histogram2d(x: Array,
-                y: Array,
-                *layers,
-                mode: str = None,
-                logx: bool = False,
-                logy: bool = False,
-                loglog: bool = False,
-                norm: str = None,
-                filename: str = None,
-                resolution: Union[int, dict] = 256,
-                operation: str = "sum",
-                title: str = None,
-                xmin: float = None,
-                xmax: float = None,
-                ymin: float = None,
-                ymax: float = None,
-                vmin: float = None,
-                vmax: float = None,
-                plot: bool = True,
-                ax: object = None,
-                **kwargs) -> Plot:
+def histogram2d(
+    x: Array,
+    y: Array,
+    *layers,
+    mode: str = None,
+    logx: bool = False,
+    logy: bool = False,
+    loglog: bool = False,
+    norm: str = None,
+    filename: str = None,
+    resolution: Union[int, dict] = 256,
+    operation: str = "sum",
+    title: str = None,
+    xmin: float = None,
+    xmax: float = None,
+    ymin: float = None,
+    ymax: float = None,
+    vmin: float = None,
+    vmax: float = None,
+    plot: bool = True,
+    ax: object = None,
+    **kwargs,
+) -> Plot:
     """
     Plot a 2D histogram with two variables as input.
     When a vector quantity is supplied, the function will histogram the norm of
@@ -181,35 +186,46 @@ def histogram2d(x: Array,
 
     # If no layers are defined, make a layer for counting cells
     if len(layers) == 0:
-        layers = [Array(values=np.ones_like(xvals), name="counts")]
+        layers = [Layer(Array(values=np.ones_like(xvals), name="counts"))]
 
     for layer in layers:
-        data, settings, params = parse_layer(layer=layer,
-                                             mode=mode,
-                                             norm=norm,
-                                             vmin=vmin,
-                                             vmax=vmax,
-                                             operation=operation,
-                                             **kwargs)
-        to_process.append(data.norm.values)
-        to_render.append({
-            "mode": settings["mode"],
-            "params": params,
-            "unit": data.unit,
-            "name": data.name
-        })
-        operations.append(settings["operation"])
+        if isinstance(layer, Array):
+            layer = Layer(layer)
+        layer = parse_layer(
+            layer,
+            mode=mode,
+            operation=operation,
+            norm=norm,
+            vmin=vmin,
+            vmax=vmax,
+            **kwargs,
+        )
+        layer.kwargs.update(
+            norm=get_norm(norm=layer.norm, vmin=layer.vmin, vmax=layer.vmax)
+        )
+        to_process.append(layer.data.norm.values)
+        to_render.append(
+            {
+                "mode": layer.mode,
+                "params": layer.kwargs,
+                "unit": layer.data.unit,
+                "name": layer.data.name,
+            }
+        )
+        operations.append(layer.operation)
 
     # Send to numba histogramming
-    binned, counts = hist2d(x=xvals,
-                            y=yvals,
-                            values=np.array(to_process),
-                            xmin=xmin,
-                            xmax=xmax,
-                            nx=nx,
-                            ymin=ymin,
-                            ymax=ymax,
-                            ny=ny)
+    binned, counts = hist2d(
+        x=xvals,
+        y=yvals,
+        values=np.array(to_process),
+        xmin=xmin,
+        xmax=xmax,
+        nx=nx,
+        ymin=ymin,
+        ymax=ymax,
+        ny=ny,
+    )
 
     mask = counts == 0
     for ind in range(len(to_process)):
@@ -222,18 +238,16 @@ def histogram2d(x: Array,
         "x": xcenters,
         "y": ycenters,
         "layers": to_render,
-        "filename": filename
+        "filename": filename,
     }
 
     if plot:
-        figure = render(x=xcenters,
-                        y=ycenters,
-                        data=to_render,
-                        logx=logx,
-                        logy=logy,
-                        ax=ax)
+        figure = render(
+            x=xcenters, y=ycenters, data=to_render, logx=logx, logy=logy, ax=ax
+        )
         figure["ax"].set_xlabel(x.label)
         figure["ax"].set_ylabel(y.label)
+        figure["ax"].set_title(title)
         to_return.update({"fig": figure["fig"], "ax": figure["ax"]})
 
     return Plot(**to_return)

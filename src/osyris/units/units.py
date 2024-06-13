@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2022 Osyris contributors (https://github.com/osyris-project/osyris)
+# Copyright (c) 2024 Osyris contributors (https://github.com/osyris-project/osyris)
 
-from pint import Quantity, UnitRegistry, Unit
+from pint import Quantity, Unit, UnitRegistry
+
 from .. import config
 
 
 class Units:
-
     def __init__(self):
         self._ureg = UnitRegistry(system="cgs")
         config.configure_constants(self._ureg)

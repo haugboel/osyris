@@ -1,14 +1,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2022 Osyris contributors (https://github.com/osyris-project/osyris)
+# Copyright (c) 2024 Osyris contributors (https://github.com/osyris-project/osyris)
 
-from ..core import Array
-from contextlib import redirect_stderr, nullcontext
 import io
+from contextlib import nullcontext, redirect_stderr
+
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.cm import ScalarMappable
 from matplotlib.collections import PatchCollection
-import numpy as np
-from pint.quantity import Quantity
+from pint import Quantity
+
+from ..core import Array, Vector
 
 
 def _add_colorbar(obj, ax, cax=None, label=None):
@@ -20,16 +22,9 @@ def _add_colorbar(obj, ax, cax=None, label=None):
     cb.ax.yaxis.set_label_coords(-1.05, 0.5)
 
 
-def quiver(ax,
-           x,
-           y,
-           z,
-           cbar=False,
-           cblabel=None,
-           density=1,
-           color="w",
-           zorder=2,
-           **kwargs):
+def quiver(
+    ax, x, y, z, cbar=False, cblabel=None, density=1, color="w", zorder=2, **kwargs
+):
     """
     Wrapper around Matplotlib's quiver plot.
 
@@ -41,7 +36,7 @@ def quiver(ax,
     default_args = {"angles": "xy", "pivot": "mid", "zorder": zorder}
     default_args.update(kwargs)
 
-    skips = np.around(np.array(z.shape) * 4.0 / 128.0 / density).astype(np.int)
+    skips = np.around(np.array(z.shape) * 4.0 / 128.0 / density).astype(int)
     skip = (slice(None, None, skips[0]), slice(None, None, skips[1]))
 
     args = [x[skip[0]], y[skip[1]], z[..., 0][skip], z[..., 1][skip]]
@@ -68,16 +63,9 @@ def pcolormesh(ax, x, y, z, cbar=False, cblabel=None, zorder=1, **kwargs):
     return out
 
 
-def contour(ax,
-            x,
-            y,
-            z,
-            cbar=False,
-            cblabel=None,
-            labels=True,
-            zorder=2,
-            fmt='%1.3f',
-            **kwargs):
+def contour(
+    ax, x, y, z, cbar=False, cblabel=None, labels=True, zorder=2, fmt="%1.3f", **kwargs
+):
     """
     Wrapper around Matplotlib's contour plot.
 
@@ -100,7 +88,7 @@ def contourf(ax, x, y, z, cbar=False, cblabel=None, zorder=1, **kwargs):
     return out
 
 
-def streamplot(ax, x, y, z, cbar=False, cblabel=None, color='w', zorder=2, **kwargs):
+def streamplot(ax, x, y, z, cbar=False, cblabel=None, color="w", zorder=2, **kwargs):
     """
     Wrapper around Matplotlib's streamplot plot.
     """
@@ -133,7 +121,7 @@ def scatter(ax, x, y, z, cbar=False, cblabel=None, zorder=2, **kwargs):
     use_patchcollection = False
     need_cbar = False
     if "s" in default_args:
-        if isinstance(default_args["s"], Array):
+        if isinstance(default_args["s"], (Array, Vector)):
             default_args["s"] = default_args["s"].norm.values
             use_patchcollection = True
         if isinstance(default_args["s"], Quantity):
@@ -174,16 +162,18 @@ def scatter(ax, x, y, z, cbar=False, cblabel=None, zorder=2, **kwargs):
     return out
 
 
-def line_integral_convolution(ax,
-                              x,
-                              y,
-                              z,
-                              cbar=False,
-                              cblabel=None,
-                              length=None,
-                              color=None,
-                              verbose=False,
-                              **kwargs):
+def line_integral_convolution(
+    ax,
+    x,
+    y,
+    z,
+    cbar=False,
+    cblabel=None,
+    length=None,
+    color=None,
+    verbose=False,
+    **kwargs,
+):
     """
     Wrapper that plots a line integral convolution of a vector field.
     Uses alpha blending to merge the LIC with a user-requested color.
@@ -208,22 +198,27 @@ def line_integral_convolution(ax,
         base_rgba = scalar_map.to_rgba(z[..., 2])
         base_alpha = 1.0
 
-        lim = (.2, .5)
+        lim = (0.2, 0.5)
         lic_data_clip = np.clip(lic_res, lim[0], lim[1])
         lic_rgba = ScalarMappable(norm=None, cmap="binary").to_rgba(lic_data_clip)
         lic_data_clip_rescale = (lic_data_clip - lim[0]) / (lim[1] - lim[0])
-        lic_alpha = lic_data_clip_rescale.reshape(lic_data_clip_rescale.shape +
-                                                  (1, )) * 0.3
+        lic_alpha = (
+            lic_data_clip_rescale.reshape(lic_data_clip_rescale.shape + (1,)) * 0.3
+        )
         # Perform alpha blending manually
         rgba = lic_rgba * lic_alpha + (base_alpha * (1.0 - lic_alpha)) * base_rgba
-        out = ax.imshow(rgba,
-                        extent=[
-                            0.5 * (3 * x[0] - x[1]), 0.5 * (3 * x[-1] - x[-2]),
-                            0.5 * (3 * y[0] - y[1]), 0.5 * (3 * y[-1] - y[-2])
-                        ],
-                        aspect='auto',
-                        origin='lower',
-                        zorder=1)
+        out = ax.imshow(
+            rgba,
+            extent=[
+                0.5 * (3 * x[0] - x[1]),
+                0.5 * (3 * x[-1] - x[-2]),
+                0.5 * (3 * y[0] - y[1]),
+                0.5 * (3 * y[-1] - y[-2]),
+            ],
+            aspect="auto",
+            origin="lower",
+            zorder=1,
+        )
         # Add the colorbar using the ScalarMappable
         scalar_map.set_array(z[..., 2])
         if cbar:

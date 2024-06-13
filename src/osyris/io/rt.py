@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
-# Copyright (c) 2022 Osyris contributors (https://github.com/osyris-project/osyris)
-import numpy as np
+# Copyright (c) 2024 Osyris contributors (https://github.com/osyris-project/osyris)
 import os
-from .reader import Reader, ReaderKind
+
+import numpy as np
+
+from .reader import Reader
 
 
 class RtReader(Reader):
-
     def __init__(self):
-        super().__init__(kind=ReaderKind.AMR)
+        super().__init__(kind="mesh")
 
     def initialize(self, meta, units, select):
         self.initialized = False
@@ -28,10 +29,9 @@ class RtReader(Reader):
             for i in range(len(desc_from_file))
         }
 
-        self.descriptor_to_variables(descriptor=descriptor,
-                                     meta=meta,
-                                     units=units,
-                                     select=select)
+        self.descriptor_to_variables(
+            descriptor=descriptor, meta=meta, units=units, select=select
+        )
         self.initialized = True
 
     def read_header(self, info):
@@ -40,5 +40,5 @@ class RtReader(Reader):
         self.offsets["d"] += 1
 
     def read_domain_header(self):
-        self.offsets['n'] += 2
-        self.offsets['i'] += 2
+        self.offsets["n"] += 2
+        self.offsets["i"] += 2
